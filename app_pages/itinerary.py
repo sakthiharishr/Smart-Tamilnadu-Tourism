@@ -980,8 +980,9 @@ def render_itinerary_page():
                 key="itinerary_budget_level",
             )
 
+
         # ====================================================
-        # ONLY MODIFIED SECTION: TIME INPUT
+        # TIME INPUT
         # ====================================================
 
         col1, col2 = st.columns(2)
@@ -990,13 +991,11 @@ def render_itinerary_page():
 
             st.markdown("**Start Time**")
 
-            # Smaller HH and MM dropdowns.
             time_col1, time_col2, time_space = st.columns(
                 [0.20, 0.20, 0.60]
             )
 
             with time_col1:
-
                 start_hour = st.selectbox(
                     "HH",
                     options=list(range(24)),
@@ -1006,7 +1005,6 @@ def render_itinerary_page():
                 )
 
             with time_col2:
-
                 start_minute = st.selectbox(
                     "MM",
                     options=list(range(60)),
@@ -1020,17 +1018,16 @@ def render_itinerary_page():
                 start_minute,
             )
 
+
         with col2:
 
             st.markdown("**End Time**")
 
-            # Smaller HH and MM dropdowns.
             time_col1, time_col2, time_space = st.columns(
                 [0.20, 0.20, 0.60]
             )
 
             with time_col1:
-
                 end_hour = st.selectbox(
                     "HH",
                     options=list(range(24)),
@@ -1040,7 +1037,6 @@ def render_itinerary_page():
                 )
 
             with time_col2:
-
                 end_minute = st.selectbox(
                     "MM",
                     options=list(range(60)),

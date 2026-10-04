@@ -435,36 +435,110 @@ def _select_plan_for_me_places(
     if not candidates:
         return []
 
-    hours = max(2.0, (end_time.hour * 60 + end_time.minute - start_time.hour * 60 - start_time.minute) / 60)
+    hours = max(
+        2.0,
+        (
+            end_time.hour * 60
+            + end_time.minute
+            - start_time.hour * 60
+            - start_time.minute
+        ) / 60,
+    )
+
     # About one stop per two hours (visit + drive), a few spare for the planner.
-    wanted = max(2, round(int(days) * hours / 2)) + 2
-    radius = PLAN_FOR_ME_RADIUS_KM + PLAN_FOR_ME_EXTRA_KM_PER_DAY * (int(days) - 1)
+    wanted = (
+        max(
+            2,
+            round(
+                int(days) * hours / 2
+            ),
+        )
+        + 2
+    )
+
+    radius = (
+        PLAN_FOR_ME_RADIUS_KM
+        + PLAN_FOR_ME_EXTRA_KM_PER_DAY
+        * (int(days) - 1)
+    )
 
     # Only places that can go on the map, near enough to reach.
-    located = [p for p in candidates if p.get("latitude") is not None and p.get("longitude") is not None]
-    nearby = [p for p in located if p.get("distance_km") is None or float(p["distance_km"]) <= radius]
+    located = [
+        p
+        for p in candidates
+        if p.get("latitude") is not None
+        and p.get("longitude") is not None
+    ]
+
+    nearby = [
+        p
+        for p in located
+        if p.get("distance_km") is None
+        or float(p["distance_km"]) <= radius
+    ]
 
     def score(place):
-        popularity = float(place.get("popularity_score") or 0)
-        distance = float(place.get("distance_km") or 0)
-        return popularity - 0.5 * distance
+        popularity = float(
+            place.get("popularity_score")
+            or 0
+        )
 
-    ranked = sorted(nearby, key=score, reverse=True)
+        distance = float(
+            place.get("distance_km")
+            or 0
+        )
+
+        return (
+            popularity
+            - 0.5 * distance
+        )
+
+    ranked = sorted(
+        nearby,
+        key=score,
+        reverse=True,
+    )
 
     # A varied trip: no single kind of place takes more than half the
     # slots, unless that is all the traveller asked for.
-    per_kind_limit = max(2, (wanted + 1) // 2)
-    chosen, per_kind = [], {}
+    per_kind_limit = max(
+        2,
+        (wanted + 1) // 2,
+    )
+
+    chosen = []
+    per_kind = {}
+
     for place in ranked:
-        kind = place.get("category_name") or "Other"
-        if per_kind.get(kind, 0) >= per_kind_limit:
+
+        kind = (
+            place.get("category_name")
+            or "Other"
+        )
+
+        if (
+            per_kind.get(kind, 0)
+            >= per_kind_limit
+        ):
             continue
+
         chosen.append(place)
-        per_kind[kind] = per_kind.get(kind, 0) + 1
+
+        per_kind[kind] = (
+            per_kind.get(kind, 0) + 1
+        )
+
         if len(chosen) >= wanted:
             break
+
     if len(chosen) < wanted:
-        chosen += [p for p in ranked if p not in chosen][: wanted - len(chosen)]
+
+        chosen += [
+            p
+            for p in ranked
+            if p not in chosen
+        ][: wanted - len(chosen)]
+
     return chosen
 
 
@@ -622,17 +696,31 @@ def _run_itinerary_generation(
     # "schedule" (visits only) keeps the AI notes and older views working;
     # "entries" adds lunch breaks for the timeline.
     itinerary = [
-        {**day, "schedule": [e for e in day["entries"] if e["kind"] == "visit"]}
+        {
+            **day,
+            "schedule": [
+                e
+                for e in day["entries"]
+                if e["kind"] == "visit"
+            ],
+        }
         for day in plan["days"]
     ]
+
     planned_places = [
         entry["place"]
         for day in itinerary
         for entry in day["schedule"]
         if not entry.get("is_start")
     ]
-    st.session_state["generated_unscheduled"] = plan["unscheduled"]
-    st.session_state["generated_total_km"] = plan["total_km"]
+
+    st.session_state[
+        "generated_unscheduled"
+    ] = plan["unscheduled"]
+
+    st.session_state[
+        "generated_total_km"
+    ] = plan["total_km"]
 
     if not itinerary:
         st.warning(
@@ -671,7 +759,10 @@ def _run_itinerary_generation(
 
     st.session_state[
         "generated_trip_selected_count"
-    ] = len(planned_places) + (1 if starting_place else 0)
+    ] = (
+        len(planned_places)
+        + (1 if starting_place else 0)
+    )
 
     # --------------------------------------------------------
     # AI NOTES
@@ -734,6 +825,7 @@ def _run_itinerary_generation(
     # --------------------------------------------------------
 
     try:
+
         if st.session_state.get(
             "travel_budget"
         ):
@@ -758,11 +850,13 @@ def _run_itinerary_generation(
             )
 
         else:
+
             st.session_state[
                 "budget_ai_notes"
             ] = ""
 
     except Exception:
+
         st.session_state[
             "budget_ai_notes"
         ] = ""
@@ -886,22 +980,78 @@ def render_itinerary_page():
                 key="itinerary_budget_level",
             )
 
+        # ====================================================
+        # ONLY MODIFIED SECTION: TIME INPUT
+        # ====================================================
+
         col1, col2 = st.columns(2)
 
         with col1:
 
-            start_time = st.time_input(
-                "Start Time",
-                value=time(9, 0),
-                key="itinerary_start_time",
+            st.markdown("**Start Time**")
+
+            # Smaller HH and MM dropdowns.
+            time_col1, time_col2, time_space = st.columns(
+                [0.20, 0.20, 0.60]
+            )
+
+            with time_col1:
+
+                start_hour = st.selectbox(
+                    "HH",
+                    options=list(range(24)),
+                    index=9,
+                    format_func=lambda value: f"{value:02d}",
+                    key="itinerary_start_hour",
+                )
+
+            with time_col2:
+
+                start_minute = st.selectbox(
+                    "MM",
+                    options=list(range(60)),
+                    index=0,
+                    format_func=lambda value: f"{value:02d}",
+                    key="itinerary_start_minute",
+                )
+
+            start_time = time(
+                start_hour,
+                start_minute,
             )
 
         with col2:
 
-            end_time = st.time_input(
-                "End Time",
-                value=time(19, 0),
-                key="itinerary_end_time",
+            st.markdown("**End Time**")
+
+            # Smaller HH and MM dropdowns.
+            time_col1, time_col2, time_space = st.columns(
+                [0.20, 0.20, 0.60]
+            )
+
+            with time_col1:
+
+                end_hour = st.selectbox(
+                    "HH",
+                    options=list(range(24)),
+                    index=19,
+                    format_func=lambda value: f"{value:02d}",
+                    key="itinerary_end_hour",
+                )
+
+            with time_col2:
+
+                end_minute = st.selectbox(
+                    "MM",
+                    options=list(range(60)),
+                    index=0,
+                    format_func=lambda value: f"{value:02d}",
+                    key="itinerary_end_minute",
+                )
+
+            end_time = time(
+                end_hour,
+                end_minute,
             )
 
         # ----------------------------------------------------
@@ -1043,19 +1193,31 @@ def render_itinerary_page():
                 candidates = [
                     place
                     for place in candidates
-                    if place.get("place_id") != starting_place.get("place_id")
+                    if place.get("place_id")
+                    != starting_place.get("place_id")
                 ]
 
             candidates = _rank_places(
-                _add_distances(candidates, starting_place)
+                _add_distances(
+                    candidates,
+                    starting_place,
+                )
             )
+
             # Nearest first when the start is on the map; places without a
             # map location go last.
-            if starting_place and starting_place.get("latitude") is not None:
+            if (
+                starting_place
+                and starting_place.get("latitude")
+                is not None
+            ):
+
                 candidates.sort(
                     key=lambda place: (
-                        place.get("distance_km") is None,
-                        place.get("distance_km") or 0,
+                        place.get("distance_km")
+                        is None,
+                        place.get("distance_km")
+                        or 0,
                     )
                 )
 
@@ -1084,8 +1246,12 @@ def render_itinerary_page():
             # chosen explicitly (start places near a border have their
             # nearest sights in the next district).
             candidate_places = (
-                _filter_by_district(places, selected_district)
-                if selected_district != "Not specified"
+                _filter_by_district(
+                    places,
+                    selected_district,
+                )
+                if selected_district
+                != "Not specified"
                 else list(places)
             )
 
@@ -1146,6 +1312,7 @@ def render_itinerary_page():
                         distance = place.get(
                             "distance_km"
                         )
+
                         distance_text = (
                             f" • {float(distance):.0f} km from start"
                             if distance is not None
@@ -1297,25 +1464,19 @@ def render_itinerary_page():
         1,
     )
 
-    generated_travelers = (
-        st.session_state.get(
-            "generated_trip_travelers",
-            1,
-        )
+    generated_travelers = st.session_state.get(
+        "generated_trip_travelers",
+        1,
     )
 
-    generated_budget_level = (
-        st.session_state.get(
-            "generated_trip_budget_level",
-            "standard",
-        )
+    generated_budget_level = st.session_state.get(
+        "generated_trip_budget_level",
+        "standard",
     )
 
-    generated_count = (
-        st.session_state.get(
-            "generated_trip_selected_count",
-            0,
-        )
+    generated_count = st.session_state.get(
+        "generated_trip_selected_count",
+        0,
     )
 
     summary_col1, summary_col2, summary_col3, summary_col4 = (
@@ -1323,6 +1484,7 @@ def render_itinerary_page():
     )
 
     with summary_col1:
+
         st.metric(
             "Planning Mode",
             (
@@ -1334,18 +1496,21 @@ def render_itinerary_page():
         )
 
     with summary_col2:
+
         st.metric(
             "Days",
             generated_days,
         )
 
     with summary_col3:
+
         st.metric(
             "Persons",
             generated_travelers,
         )
 
     with summary_col4:
+
         st.metric(
             "Stops",
             generated_count,
@@ -1374,31 +1539,52 @@ def render_itinerary_page():
     # REMAINING PLACES
     # --------------------------------------------------------
 
-    remaining = st.session_state.get("generated_unscheduled") or []
-    mode_is_auto = "Plan For Me" in generated_mode
+    remaining = st.session_state.get(
+        "generated_unscheduled"
+    ) or []
+
+    mode_is_auto = (
+        "Plan For Me"
+        in generated_mode
+    )
 
     if remaining and not mode_is_auto:
+
         # Manual picks that could not be planned: say why, not just which.
         st.warning(
             f"{'One place' if len(remaining) == 1 else f'{len(remaining)} places'} didn't fit into "
             f"{generated_days} day{'s' if generated_days != 1 else ''} without a long detour or "
             "arriving when it's closed. Add another day, or choose places closer together."
         )
+
         st.markdown(
             "**Saved for another trip:** "
             + ", ".join(
-                escape(str(place.get("place_name", "Unknown Place")))
+                escape(
+                    str(
+                        place.get(
+                            "place_name",
+                            "Unknown Place",
+                        )
+                    )
+                )
                 for place in remaining
             )
         )
+
     elif not remaining:
+
         st.success(
             f"Everything fits nicely into {generated_days} "
             f"day{'s' if generated_days != 1 else ''}."
         )
 
-    total_km = st.session_state.get("generated_total_km")
+    total_km = st.session_state.get(
+        "generated_total_km"
+    )
+
     if total_km:
+
         st.caption(
             f"You'll drive about {float(total_km):.0f} km in all. We've timed temples for "
             "the morning or after 4 pm, and parks, dams and waterfalls for daylight."
@@ -1478,11 +1664,9 @@ def render_itinerary_page():
     # BUDGET AI NOTES
     # --------------------------------------------------------
 
-    budget_ai_notes = (
-        st.session_state.get(
-            "budget_ai_notes",
-            "",
-        )
+    budget_ai_notes = st.session_state.get(
+        "budget_ai_notes",
+        "",
     )
 
     if budget_ai_notes:

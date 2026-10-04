@@ -987,30 +987,53 @@ def render_itinerary_page():
 
         col1, col2 = st.columns(2)
 
+        # Keep all time labels at the same size as the normal
+        # Streamlit field labels used above (Number of Days,
+        # Number of Persons, Budget Category).
+        TIME_LABEL_STYLE = (
+            "font-size: 14px; font-weight: 600; "
+            "line-height: 1.2; margin-bottom: 8px;"
+        )
+
         with col1:
 
-            st.markdown("**Start Time**")
+            st.markdown(
+                f'<div style="{TIME_LABEL_STYLE}">Start Time</div>',
+                unsafe_allow_html=True,
+            )
 
             time_col1, time_col2, time_space = st.columns(
                 [0.20, 0.20, 0.60]
             )
 
             with time_col1:
+                st.markdown(
+                    f'<div style="{TIME_LABEL_STYLE}">HH</div>',
+                    unsafe_allow_html=True,
+                )
+
                 start_hour = st.selectbox(
-                    "HH",
+                    "Start Hour",
                     options=list(range(24)),
                     index=9,
                     format_func=lambda value: f"{value:02d}",
                     key="itinerary_start_hour",
+                    label_visibility="collapsed",
                 )
 
             with time_col2:
+                st.markdown(
+                    f'<div style="{TIME_LABEL_STYLE}">MM</div>',
+                    unsafe_allow_html=True,
+                )
+
                 start_minute = st.selectbox(
-                    "MM",
+                    "Start Minute",
                     options=list(range(60)),
                     index=0,
                     format_func=lambda value: f"{value:02d}",
                     key="itinerary_start_minute",
+                    label_visibility="collapsed",
                 )
 
             start_time = time(
@@ -1018,31 +1041,45 @@ def render_itinerary_page():
                 start_minute,
             )
 
-
         with col2:
 
-            st.markdown("**End Time**")
+            st.markdown(
+                f'<div style="{TIME_LABEL_STYLE}">End Time</div>',
+                unsafe_allow_html=True,
+            )
 
             time_col1, time_col2, time_space = st.columns(
                 [0.20, 0.20, 0.60]
             )
 
             with time_col1:
+                st.markdown(
+                    f'<div style="{TIME_LABEL_STYLE}">HH</div>',
+                    unsafe_allow_html=True,
+                )
+
                 end_hour = st.selectbox(
-                    "HH",
+                    "End Hour",
                     options=list(range(24)),
                     index=19,
                     format_func=lambda value: f"{value:02d}",
                     key="itinerary_end_hour",
+                    label_visibility="collapsed",
                 )
 
             with time_col2:
+                st.markdown(
+                    f'<div style="{TIME_LABEL_STYLE}">MM</div>',
+                    unsafe_allow_html=True,
+                )
+
                 end_minute = st.selectbox(
-                    "MM",
+                    "End Minute",
                     options=list(range(60)),
                     index=0,
                     format_func=lambda value: f"{value:02d}",
                     key="itinerary_end_minute",
+                    label_visibility="collapsed",
                 )
 
             end_time = time(

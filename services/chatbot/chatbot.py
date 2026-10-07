@@ -12,83 +12,69 @@ from services.search.start_search import start_search
 from services.status.place_status import get_current_status
 
 
+def _contains_any(text, words):
+    return any(word in text for word in words)
+
+
 def detect_intent(message):
     if not message:
         return "general"
 
     text = message.lower().strip()
 
-    if any(
-        word in text
-        for word in [
-            "near",
-            "nearby",
-            "around",
-            "closest",
-        ]
-    ):
+    # "suggest me places with budget" / "budget 10000 places" -> budget_places
+    if _contains_any(text, ["budget", "cost", "expense", "cheap", "affordable", "free"]) and \
+       _contains_any(text, ["place", "places", "visit", "suggest", "recommend", "spot", "destination", "go", "where"]):
+        return "budget_places"
+
+    # Nearby must be checked before generic "place" words
+    if _contains_any(text, ["near", "nearby", "around", "closest"]):
         return "nearby"
 
-    if any(
-        word in text
-        for word in [
-            "place",
-            "places",
-            "visit",
-            "tourist",
-            "destination",
-        ]
-    ):
+    if _contains_any(text, [
+        "place", "places", "visit", "tourist", "destination", "spot", "spots",
+        "suggest", "recommend", "where to go", "where should i go",
+        "must see", "best to visit",
+    ]):
         return "places"
 
-    if any(
-        word in text
-        for word in [
-            "temple",
-            "beach",
-            "hill",
-            "waterfall",
-            "wildlife",
-        ]
-    ):
+    if _contains_any(text, [
+        "temple", "beach", "hill", "waterfall", "wildlife", "heritage",
+        "historical", "nature", "adventure", "cultural", "museum",
+    ]):
         return "category"
 
-    if any(
-        word in text
-        for word in [
-            "festival",
-            "festivals",
-            "celebration",
-        ]
-    ):
+    if _contains_any(text, ["festival", "festivals", "celebration", "event"]):
         return "festival"
 
-    if any(
-        word in text
-        for word in [
-            "budget",
-            "cost",
-            "expense",
-            "price",
-        ]
-    ):
+    if _contains_any(text, ["budget", "cost", "expense", "price", "fee", "how much", "entry"]):
         return "budget"
 
-    if any(
-        word in text
-        for word in [
-            "itinerary",
-            "trip plan",
-            "travel plan",
-            "schedule",
-        ]
-    ):
+    if _contains_any(text, ["itinerary", "trip plan", "travel plan", "schedule", "day plan", "plan my trip"]):
         return "itinerary"
 
     return "general"
 
 
+# Stop words that should not be passed directly to the place search engine
+_SEARCH_STOP_WORDS = frozenset({
+    "place", "places", "tourist", "destination", "destinations", "spot", "spots",
+    "visit", "me", "suggest", "recommend", "in", "at", "to", "the", "a", "an",
+    "good", "best", "top", "some", "any", "budget", "10000", "5000", "1000",
+    "with", "for", "my", "of", "is", "are", "have", "has", "i", "we",
+    "trip", "travel", "tour", "go", "what", "where", "which", "how",
+    "tamilnadu", "tamil", "nadu", "tamilnad",
+})
+
+
 def extract_search_term(message):
+    """Extract a meaningful search term from the message.
+
+    Strips leading instruction phrases and returns the remaining topic
+    (e.g. ''beach'', ''Madurai'', ''waterfall near Tenkasi'').
+    Returns an empty string when the message is a generic request with
+    no useful search keyword.
+    """
     if not message:
         return ""
 
@@ -99,21 +85,38 @@ def extract_search_term(message):
         "show me",
         "find",
         "search for",
+        "places to visit in",
         "places to visit",
+        "tourist places in",
         "tourist places",
+        "i want to visit",
+        "suggest me places in",
+        "suggest me places",
+        "recommend places in",
+        "recommend places",
     ]
 
     text = message.strip()
 
     for prefix in prefixes:
         if text.lower().startswith(prefix):
-            return text[len(prefix):].strip()
+            remainder = text[len(prefix):].strip()
+            # Only return the remainder if it has real content
+            if remainder and not all(w.lower() in _SEARCH_STOP_WORDS for w in remainder.split()):
+                return remainder
+            return ""
+
+    # Check if all meaningful tokens are stop words / numbers
+    tokens = [t.strip(".,?!") for t in text.split()]
+    meaningful = [t for t in tokens if t.lower() not in _SEARCH_STOP_WORDS and not t.isdigit()]
+    if not meaningful:
+        return ""
 
     return text
 
 
 def _find_named_place(message):
-    """A specific destination named in the message ("tell me about Marina Beach")."""
+    """A specific destination named in the message (\"tell me about Marina Beach\")."""
     term = extract_search_term(message).strip(" ?.!")
     if len(term) < 4:
         return None
@@ -122,6 +125,16 @@ def _find_named_place(message):
         if str(place.get("place_name", "")).casefold() in (message or "").casefold():
             return place
     return None
+
+
+def _top_places(limit=6):
+    """Return the top-rated / most popular places from the DB."""
+    places = [dict(p) for p in find_places(limit=limit * 3)]
+    places.sort(key=lambda p: (
+        -(float(p.get("weighted_rating") or p.get("rating") or 0)),
+        -(float(p.get("popularity_score") or 0)),
+    ))
+    return places[:limit]
 
 
 def _describe_places(places, heading):
@@ -232,6 +245,64 @@ def _format_places(places, prefix="Here are some suitable places:"):
     return prefix + "\n\n" + "\n".join(f"{index}. {name}" for index, name in enumerate(names, 1))
 
 
+def _budget_places_answer(message):
+    """Return a response for queries combining budget + places.
+
+    Extracts a district/category if present, otherwise returns top places
+    alongside a reminder about the Budget & Itinerary tools.
+    """
+    import re
+    text = (message or "").lower()
+
+    district = find_district(message)
+    category = find_category(message)
+
+    # Try to pull a budget amount from the message
+    amount_match = re.search(r"\b(\d{3,7})\b", message)
+    amount_str = f" ₹{int(amount_match.group(1)):,}" if amount_match else ""
+
+    # Fetch relevant places
+    if district or category:
+        places = [dict(p) for p in find_places(district=district, category_name=category, limit=8)]
+    else:
+        places = _top_places(limit=6)
+
+    if not places:
+        places = _top_places(limit=6)
+
+    where_phrase = ""
+    if district and category:
+        where_phrase = f"{_CATEGORY_PHRASES.get(category, 'places')} in {district}"
+    elif district:
+        where_phrase = f"places in {district}"
+    elif category:
+        where_phrase = f"{_CATEGORY_PHRASES.get(category, 'places')}"
+    else:
+        where_phrase = "popular spots across Tamil Nadu"
+
+    heading = f"With a budget of{amount_str}, here are some {where_phrase} worth visiting:"
+
+    lines = []
+    for place in places[:6]:
+        name = place.get("place_name", "")
+        desc = str(place.get("description") or "").strip()
+        if len(desc) > 120:
+            desc = desc[:117].rsplit(" ", 1)[0] + "…"
+        detail = f" – {desc}" if len(desc) >= 30 else ""
+        town = str(place.get("city_town") or "").strip()
+        loc = f" ({town})" if town and town.casefold() not in (
+            str(place.get("district") or "").casefold(), name.casefold()) else (
+            f" ({place.get('district')})" if place.get("district") else "")
+        lines.append(f"- **{name}**{loc}{detail}")
+
+    response = heading + "\n\n" + "\n".join(lines)
+    response += (
+        "\n\n💡 For a detailed cost breakdown, open the **Budget** tab and enter your starting point, "
+        "destinations and number of travellers — it'll estimate transport, food and entry fees."
+    )
+    return response
+
+
 def generate_response(message):
     if not message or not message.strip():
         return (
@@ -262,17 +333,30 @@ def generate_response(message):
                 response += " No recent source-verified condition is available, so check locally before travel."
             return response
 
-    if intent == "places":
-        places = search_tourist_places(search_term)
+    # Budget + places combined intent: "I have budget of 10000, suggest me places"
+    if intent == "budget_places":
+        return _budget_places_answer(message)
 
-        if not places:
-            return (
-                "Hmm, I couldn't find a match for that. Try a town or "
-                "district name, or a kind of place - say, \"beaches near "
-                "Chennai\" or \"temples in Thanjavur\"."
+    if intent == "places":
+        # If we have a meaningful search term, try searching for it
+        if search_term:
+            places = search_tourist_places(search_term)
+            if places:
+                return _format_places(places, "A few places you might enjoy:")
+
+        # No specific search term or no results: show top places
+        top = _top_places(limit=6)
+        if top:
+            return _describe_places(
+                top,
+                "Here are some of the most loved destinations across Tamil Nadu:"
             )
 
-        return _format_places(places, "A few places you might enjoy:")
+        return (
+            "Hmm, I couldn't find a match for that. Try a town or "
+            "district name, or a kind of place - say, \"beaches near "
+            "Chennai\" or \"temples in Thanjavur\"."
+        )
 
     if intent == "category":
         places = search_tourist_places(search_term)
@@ -312,9 +396,11 @@ def generate_response(message):
 
     if intent == "budget":
         return (
-            "Happy to help with costs! Open the Itinerary tab, pick your "
-            "places, days and budget level, and you'll get a day plan with "
-            "an estimated budget right below it."
+            "Happy to help with costs! Open the **Budget** tab, pick your "
+            "district, starting place and destinations, and you'll get a "
+            "full breakdown of transport, food and entry fees. Or ask me "
+            "something like \"affordable temples in Madurai\" and I'll "
+            "list places right here."
         )
 
     if intent == "itinerary":

@@ -13,3 +13,19 @@ def test_numbered_list_stays_numbered():
 
 def test_html_in_answers_is_escaped():
     assert format_message("<script>x</script> **ok**") == "<p>&lt;script&gt;x&lt;/script&gt; <strong>ok</strong></p>"
+
+
+def test_chatbot_budget_place_query_returns_places():
+    from services.chatbot.chatbot import generate_response
+    response = generate_response("i have budget of 10000, suggest me places")
+    assert response is not None
+    assert "budget" in response.lower()
+    assert "- **" in response  # has place recommendations
+
+
+def test_chatbot_generic_suggest_places_returns_recommendations():
+    from services.chatbot.chatbot import generate_response
+    response = generate_response("suggest me places")
+    assert response is not None
+    assert "- **" in response  # has place recommendations
+

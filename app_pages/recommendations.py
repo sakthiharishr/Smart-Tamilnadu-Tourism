@@ -533,14 +533,8 @@ def render_recommendations_page():
             [1.35, 1]
         )
 
-        with col_start:
-
-            starting_place = _place_select(
-                "Enter your starting place",
-                places,
-                "recommendation_plan_start",
-            )
-
+        # Select the district first so the Start Place dropdown can be
+        # shortlisted to that district without changing the page layout.
         with col_district:
 
             districts = _unique(
@@ -558,6 +552,38 @@ def render_recommendations_page():
                 "District (Optional)",
                 district_options,
                 key="recommendation_plan_district",
+            )
+
+        with col_start:
+
+            if district != "All Districts":
+                start_place_options = [
+                    place
+                    for place in places
+                    if str(place.get("district") or "").strip().casefold()
+                    == str(district).strip().casefold()
+                ]
+            else:
+                start_place_options = places
+
+            # Clear a stale Start Place when the selected district changes.
+            valid_start_ids = {
+                place.get("place_id")
+                for place in start_place_options
+            }
+            previous_start = st.session_state.get(
+                "recommendation_plan_start"
+            )
+            if previous_start is not None and previous_start not in valid_start_ids:
+                st.session_state.pop(
+                    "recommendation_plan_start",
+                    None,
+                )
+
+            starting_place = _place_select(
+                "Enter your starting place",
+                start_place_options,
+                "recommendation_plan_start",
             )
 
         # ---------------------------------------------------------------

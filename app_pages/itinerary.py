@@ -158,19 +158,39 @@ def _place_select(
     lookup = _place_map(places)
 
     if not lookup:
+        st.selectbox(
+            label,
+            [None],
+            index=0,
+            key=f"{key}_empty",
+            disabled=True,
+            format_func=lambda _: "No places found in this district",
+        )
         return None
+
+    # Keep Start Place empty until the user explicitly selects one.
+    options = [None] + list(lookup.keys())
+
+    # If the previously chosen place is not in the filtered options, reset it.
+    if key in st.session_state and st.session_state[key] not in options:
+        st.session_state[key] = None
 
     selected_id = st.selectbox(
         label,
-        list(lookup.keys()),
+        options,
+        index=0,
         key=key,
-        format_func=lambda place_id: _place_label(
-            lookup[place_id],
-            show_district=True,
+        format_func=lambda place_id: (
+            "Select"
+            if place_id is None
+            else _place_label(
+                lookup[place_id],
+                show_district=True,
+            )
         ),
     )
 
-    return lookup.get(selected_id)
+    return lookup.get(selected_id) if selected_id is not None else None
 
 
 def _place_multiselect(
@@ -182,6 +202,14 @@ def _place_multiselect(
 
     if not lookup:
         return []
+
+    # Filter out any stale place IDs that are no longer in options
+    if key in st.session_state and isinstance(st.session_state[key], list):
+        st.session_state[key] = [
+            place_id
+            for place_id in st.session_state[key]
+            if place_id in lookup
+        ]
 
     selected_ids = st.multiselect(
         label,
@@ -196,6 +224,12 @@ def _place_multiselect(
         lookup[place_id]
         for place_id in selected_ids
     ]
+
+
+def _on_itinerary_district_change():
+    """Reset start place and destination selections whenever the district changes."""
+    st.session_state["itinerary_manual_places"] = []
+    st.session_state["itinerary_start_place"] = None
 
 
 def _filter_by_district(
@@ -219,9 +253,9 @@ def _filter_by_district(
         == district
     ]
 
-    # If no matching district is found,
-    # don't destroy the candidate list.
-    return filtered or list(places)
+    # A selected district is a strict filter. Never fall back to all places
+    # when a district is selected.
+    return filtered
 
 
 def _filter_by_interests(
@@ -1088,7 +1122,7 @@ def render_itinerary_page():
             )
 
         # ----------------------------------------------------
-        # START PLACE
+        # START PLACE & DISTRICT
         # ----------------------------------------------------
 
         st.markdown(
@@ -1099,14 +1133,8 @@ def render_itinerary_page():
             [2, 1]
         )
 
-        with col1:
-
-            starting_place = _place_select(
-                "Start Place",
-                places,
-                "itinerary_start_place",
-            )
-
+        # Select the district first so the Start Place dropdown can be
+        # shortlisted to that district without changing the page layout.
         with col2:
 
             districts = _unique(
@@ -1124,49 +1152,27 @@ def render_itinerary_page():
                 "District (Optional)",
                 district_options,
                 key="itinerary_district",
+                on_change=_on_itinerary_district_change,
             )
 
-        # ----------------------------------------------------
-        # AUTOMATIC DISTRICT
-        # ----------------------------------------------------
-
-        detected_district = ""
-
-        if starting_place:
-
-            detected_district = str(
-                starting_place.get(
-                    "district"
-                )
-                or ""
-            ).strip()
-
-        if (
+        effective_district = (
             selected_district
-            != "Not specified"
-        ):
+            if selected_district != "Not specified"
+            else ""
+        )
 
-            effective_district = (
-                selected_district
+        with col1:
+
+            start_place_candidates = _filter_by_district(
+                places,
+                effective_district,
             )
 
-        else:
-
-            effective_district = (
-                detected_district
+            starting_place = _place_select(
+                "Start Place",
+                start_place_candidates,
+                "itinerary_start_place",
             )
-
-        if detected_district:
-
-            if (
-                selected_district
-                == "Not specified"
-            ):
-
-                st.caption(
-                    "District automatically identified "
-                    f"from Start Place: **{detected_district}**"
-                )
 
         # ----------------------------------------------------
         # INTERESTS
@@ -1254,12 +1260,12 @@ def render_itinerary_page():
                     )
                 )
 
-            selected_places = (
-                _place_multiselect(
-                    "Places to Visit",
-                    candidates,
-                    "itinerary_manual_places",
-                )
+            # Keep one stable widget key. The district callback clears the
+            # previous selections before Streamlit rebuilds this widget.
+            selected_places = _place_multiselect(
+                "Places to Visit",
+                candidates,
+                "itinerary_manual_places",
             )
 
         else:
@@ -1278,14 +1284,9 @@ def render_itinerary_page():
             # Around the start place by distance, unless a district was
             # chosen explicitly (start places near a border have their
             # nearest sights in the next district).
-            candidate_places = (
-                _filter_by_district(
-                    places,
-                    selected_district,
-                )
-                if selected_district
-                != "Not specified"
-                else list(places)
+            candidate_places = _filter_by_district(
+                places,
+                effective_district,
             )
 
             # Remove the starting place.

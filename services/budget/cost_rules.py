@@ -1,8 +1,38 @@
 COST_RULES = {
+    # Indicative Coimbatore cab/day-package assumptions. These are
+    # estimates, not live booking prices. The calculator also applies
+    # included kilometres and driver allowance instead of pretending that
+    # every cab charges a flat per-km rate.
     "transport": {
-        "budget": 6.0,
-        "standard": 8.0,
-        "premium": 12.0,
+        "budget": 11.0,
+        "standard": 12.0,
+        "premium": 17.0,
+    },
+    "transport_package": {
+        "budget": {
+            "vehicle": "Sedan",
+            "capacity": 4,
+            "base_per_day": 2250.0,
+            "included_km_per_day": 100.0,
+            "extra_km_rate": 11.0,
+            "driver_allowance_per_day": 350.0,
+        },
+        "standard": {
+            "vehicle": "Sedan",
+            "capacity": 4,
+            "base_per_day": 2700.0,
+            "included_km_per_day": 100.0,
+            "extra_km_rate": 12.0,
+            "driver_allowance_per_day": 400.0,
+        },
+        "premium": {
+            "vehicle": "Innova Crysta",
+            "capacity": 7,
+            "base_per_day": 4800.0,
+            "included_km_per_day": 100.0,
+            "extra_km_rate": 17.0,
+            "driver_allowance_per_day": 400.0,
+        },
     },
     "food_per_person_per_day": {
         "budget": 300.0,

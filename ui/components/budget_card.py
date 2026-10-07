@@ -121,6 +121,20 @@ def render_budget_card(
         0,
     )
 
+    transport_details = budget.get("transport_details") or {}
+
+    if transport_details:
+        vehicle = transport_details.get("vehicle", "cab")
+        vehicle_count = transport_details.get("vehicles", 1)
+        included_km = transport_details.get("included_km", 0)
+        extra_km = transport_details.get("extra_km", 0)
+        vehicle_text = f"{vehicle} x {vehicle_count}" if vehicle_count > 1 else vehicle
+        st.caption(
+            f"Transportation estimate: {vehicle_text}; {included_km:.0f} km included "
+            f"for the trip, {extra_km:.1f} extra km charged separately. "
+            "Tolls and parking are excluded and may vary by operator."
+        )
+
     lines = (
         (
             "Accommodation",

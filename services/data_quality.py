@@ -129,8 +129,55 @@ EDUCATION_PATTERNS = (
     r"\biit\b",
     r"\bnit\b",
     r"\biim\b",
+    r"\bskct\b",
+    r"\btpgit\b",
+    r"\bfront gate\b",
+    r"\bmain gate\b",
+    r"\bback gate\b",
     r"educational institution",
 )
+
+INVALID_TOURISM_PATTERNS = (
+    # Commercial / Industrial / Health / Retail
+    r"\b(boteling plant|bottling plant|biogas plant)\b",
+    r"\b(showroom|outlet)\b",
+    r"\b(chicken 65 shop|fast food|tea stall)\b",
+    r"\b(bharat scans|scan centre|scan center|diagnostic centre|diagnostic center)\b",
+    r"\b(herbal mills|binny mills building)\b",
+    r"\b(dugar group of company)\b",
+    r"\b(thirumana mandabam|kalyana mandapam)\b",
+    r"\b(home finders estate)\b",
+    # Administrative / Offices
+    r"\b(mla office|egp office|my office)\b",
+    # Residential / Personal accommodations / Slang
+    r"\b(lake flats|sangeetha hostel|abandoned house|forest quarters|bhooth banglou)\b",
+    r"\b(manjula house|pamayan organic form house|dream house|ramu veedu)\b",
+    r"\b(my room|anna room)\b",
+    # Roads / Traffic / Signage / Utilities / Local grounds
+    r"\b(road to b|s bend)\b",
+    r"\b(military road roundabout|thiruvagoundanur roundabout|avr roundabout)\b",
+    r"\b(namma tambaram|southernmost post box)\b",
+    r"\b(melakkadu mayanam|thingal sandhai)\b",
+    # Specific personal nonsense tags
+    r"\b(sriram\.s|ganesan ayya|surrapati)\b",
+)
+
+OUT_OF_STATE_DESTINATIONS = frozenset({
+    "bandipur national park",
+    "bannerghatta national park",
+})
+
+# Known legitimate heritage sites / historical gates / museums to never filter out
+VALID_HERITAGE_EXCEPTIONS = frozenset({
+    "delhi gate", "st. thomas gate", "wallajah gate", "st. george's gate", "north gate", "pully gate", "town gate",
+    "police museum", "tamil nadu police museum", "tamilnadu police museum", "chennai railway museum",
+    "vivekananda house and museum", "kamaraj memorial house", "kamarajar's house", "stone house",
+    "chettinad house", "ziegenbalg house", "house of kalam (apj abdul kalam house/museum)", "gnanananda house",
+    "annamalai raja's waiting house", "chettiars houses", "vrvm chettiars house", "hindu house", "syrian christian house",
+    "lake boat house", "ttdc boat house", "muttukadu boat house", "boathouse", "pichavaram boathouse",
+    "mathoor hanging bridge", "mathur hanging aqueduct", "pamban bridge", "ram sethu bridge",
+    "tea museum / tea factory", "crocodile bank", "pondy bazaar", "the nilgiri mountain railway",
+})
 
 
 def canonicalize_district(value):
@@ -178,6 +225,26 @@ def is_educational_place(place):
     return any(re.search(pattern, text) for pattern in EDUCATION_PATTERNS)
 
 
+def is_invalid_tourism_place(place):
+    name = str(place.get("place_name") or "").strip().casefold()
+    if name in VALID_HERITAGE_EXCEPTIONS:
+        return False
+    if name in OUT_OF_STATE_DESTINATIONS:
+        return True
+    if is_educational_place(place):
+        return True
+    fields = (
+        place.get("place_name"),
+        place.get("category_name"),
+        place.get("subcategory"),
+        place.get("description"),
+        place.get("amenity"),
+        place.get("tourism"),
+    )
+    text = " ".join(str(value or "") for value in fields).casefold()
+    return any(re.search(pattern, text) for pattern in INVALID_TOURISM_PATTERNS)
+
+
 def filter_tourism_records(records):
     if records is None:
         return records
@@ -187,7 +254,7 @@ def filter_tourism_records(records):
         item["district"] = canonicalize_district(item.get("district"))
         if not is_tamil_nadu_district(item.get("district")):
             continue
-        if is_educational_place(item):
+        if is_invalid_tourism_place(item):
             continue
         item["state"] = DEFAULT_STATE
         result.append(item)

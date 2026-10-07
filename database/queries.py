@@ -1,4 +1,4 @@
-from services.data_quality import canonicalize_district, is_tamil_nadu_district, is_educational_place
+from services.data_quality import canonicalize_district, is_tamil_nadu_district, is_educational_place, is_invalid_tourism_place
 from config.districts import TN_DISTRICTS
 
 from database.connection import (
@@ -56,7 +56,7 @@ def upsert_tourism_place(place, source_id=None):
     district = canonicalize_district(place.get("district"))
     if not name or not district or not is_tamil_nadu_district(district):
         return None
-    if is_educational_place(place):
+    if is_educational_place(place) or is_invalid_tourism_place(place):
         return None
     record = {**place, "place_name": name, "district": district, "source_id": source_id,
               "sources": [(source_id, place.get("source_url") or "")] if source_id else []}

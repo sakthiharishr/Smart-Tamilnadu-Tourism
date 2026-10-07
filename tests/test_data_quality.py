@@ -9,3 +9,16 @@ def test_filters_educational_and_non_tn_records():
     ]
     result = filter_tourism_records(records)
     assert [x["place_name"] for x in result] == ["Gateway Attraction"]
+
+
+def test_filters_invalid_tourism_places():
+    records = [
+        {"place_name": "SKCT front gate", "district": "Coimbatore", "category_name": "Historical"},
+        {"place_name": "Pepsi boteling plant", "district": "Chengalpattu", "category_name": "Cultural"},
+        {"place_name": "My Room", "district": "Tiruvallur", "category_name": "Cultural"},
+        {"place_name": "Bandipur National Park", "district": "Erode", "category_name": "Wildlife"},
+        {"place_name": "Brihadeeswarar Temple", "district": "Thanjavur", "category_name": "Temple"},
+    ]
+    result = filter_tourism_records(records)
+    assert [x["place_name"] for x in result] == ["Brihadeeswarar Temple"]
+

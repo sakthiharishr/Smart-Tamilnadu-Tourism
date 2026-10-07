@@ -1,10 +1,60 @@
 DEFAULT_COSTS = {
-    "transport_per_km": 8.0,
+    "transport_per_km": 12.0,
     "food_per_person_per_day": 500.0,
     "accommodation_per_person_per_day": 1000.0,
     "entry_fee_buffer": 0.0,
     "miscellaneous_per_day": 200.0,
 }
+
+
+def calculate_cab_transport_cost(
+    distance_km,
+    days=1,
+    budget_level="standard",
+    travelers=1,
+):
+    """Estimate a tourist cab using a day-package model.
+
+    This intentionally does not claim a universal per-km taxi fare.
+    It uses an indicative vehicle package with included km/day, then adds
+    extra-km charges and driver allowance. Toll, parking and surge/peak
+    charges are not included because they vary by operator and route.
+    """
+    try:
+        distance_km = max(0.0, float(distance_km))
+        days = max(1, int(days))
+        travelers = max(1, int(travelers))
+    except (TypeError, ValueError):
+        return {"cost": 0.0, "vehicle": "Sedan", "vehicles": 1, "extra_km": 0.0}
+
+    from .cost_rules import COST_RULES, BUDGET_LEVELS
+
+    if budget_level not in BUDGET_LEVELS:
+        budget_level = "standard"
+
+    package = COST_RULES["transport_package"][budget_level]
+    capacity = int(package["capacity"])
+    vehicles = max(1, (travelers + capacity - 1) // capacity)
+
+    included_km = float(package["included_km_per_day"]) * days
+    extra_km = max(0.0, distance_km - included_km)
+
+    base = float(package["base_per_day"]) * days
+    driver = float(package["driver_allowance_per_day"]) * days
+    extra = extra_km * float(package["extra_km_rate"])
+
+    cost = (base + driver + extra) * vehicles
+
+    return {
+        "cost": round(cost, 2),
+        "vehicle": package["vehicle"],
+        "vehicles": vehicles,
+        "included_km": round(included_km, 2),
+        "extra_km": round(extra_km, 2),
+        "base_package": round(base * vehicles, 2),
+        "driver_allowance": round(driver * vehicles, 2),
+        "extra_km_charge": round(extra * vehicles, 2),
+    }
 
 
 def calculate_transport_cost(
@@ -156,11 +206,22 @@ def calculate_total_budget(
     food_cost_per_person_per_day=None,
     accommodation_cost_per_person_per_night=None,
     miscellaneous_cost_per_day=None,
+    budget_level=None,
 ):
-    transport = calculate_transport_cost(
-        distance_km,
-        transport_cost_per_km,
-    )
+    transport_details = None
+    if budget_level is not None:
+        transport_details = calculate_cab_transport_cost(
+            distance_km,
+            days=days,
+            budget_level=budget_level,
+            travelers=travelers,
+        )
+        transport = transport_details["cost"]
+    else:
+        transport = calculate_transport_cost(
+            distance_km,
+            transport_cost_per_km,
+        )
 
     food = calculate_food_cost(
         travelers,
@@ -194,6 +255,7 @@ def calculate_total_budget(
 
     return {
         "transport": round(transport, 2),
+        "transport_details": transport_details,
         "food": round(food, 2),
         "accommodation": round(
             accommodation,

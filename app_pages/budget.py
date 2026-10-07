@@ -115,6 +115,7 @@ def _calculate_and_store(selected_places, travelers, days, budget_level, startin
         nights=nights,
         places=selected_places,
         transport_cost_per_km=rules["transport"],
+        budget_level=budget_level,
         food_cost_per_person_per_day=rules["food_per_person_per_day"],
         accommodation_cost_per_person_per_night=rules["accommodation_per_person_per_night"],
         miscellaneous_cost_per_day=rules["miscellaneous_per_day"],
